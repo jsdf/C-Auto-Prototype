@@ -148,7 +148,7 @@ function determineDocument(currentDocument: vscode.TextDocument, oppositeDocumen
 function createHeaderText(symbols: Symbol[], headerDocument: vscode.TextDocument): string {
 	const { fileName } = getDocumentNamePathExtension(headerDocument);
 	const headerGuard = `${fileName.toUpperCase()}_H`;
-	const headerGuardEnd = `\n\n#endif //${headerGuard}`;
+	const headerGuardEnd = `\n\n#endif // ${headerGuard}`;
 	let preText: string = "";
 	let prototypeText: string = "";
 	let postText: string = "";
@@ -163,18 +163,39 @@ function createHeaderText(symbols: Symbol[], headerDocument: vscode.TextDocument
 
 	const prevPrototypeText = symbols.map(symbol => `${symbol.prefix}${symbol.codeSymbol.name};\n`).join("");
 	const checkText = textToWrite + prototypeText + prevPrototypeText + headerGuardEnd;
+	const headerGuardRegexp = new RegExp(`#ifndef\s+${headerGuard}`);
+	const headerGuardEndRegexp = new RegExp(`#endif\s+//\s*${headerGuard}`);
+	let foundHeaderGuard = false;
+	let foundHeaderGuardEnd = false;
+	let foundPrevPrototypes = false;
 	for (let i = 0; i < headerDocument.lineCount; ++i) {
 		const lineRange = headerDocument.lineAt(i).rangeIncludingLineBreak;
 		const lineText = headerDocument.getText(lineRange);
-		if (!checkText.includes(lineText.trim())) {
-			if (lineText.startsWith('#')) {
-				preText += `${lineText}`;
+		// pretext is stuff after header guard, before the prototypes
+		// posttext is stuff after the prototypes, before the header guard end
+		if (lineText.match(headerGuardRegexp)) {
+			foundHeaderGuard = true;
+			continue;
+		}
+		if (lineText.match(headerGuardEndRegexp)) {
+			foundHeaderGuardEnd = true;
+			continue;
+		}
+		if (!foundHeaderGuard) {
+			continue;
+		} else if (!foundHeaderGuardEnd) {
+			if (!checkText.includes(lineText.trim())) {
+				foundPrevPrototypes = true;
+				continue;
+			}
+			if (!foundPrevPrototypes) {
+				preText += lineText;
 			} else {
-				postText += `${lineText}`;
+				postText += lineText;
 			}
 		}
 	}
-
+	
 	textToWrite += `${preText}\n${prototypeText}\n${postText}`.trim();
 	textToWrite += headerGuardEnd;
 	return textToWrite;
