@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+
 
 type VSCodeSymbol = (vscode.SymbolInformation & vscode.DocumentSymbol);
 
@@ -50,35 +52,33 @@ function isCLanguageFile(document: vscode.TextDocument): boolean {
 }
 
 async function getOppositeFile(document: vscode.TextDocument): Promise<vscode.TextDocument | null> {
-	const { fileName, path, extension } = getDocumentNamePathExtension(document);
+	const { fileName, fileDir, extension } = getDocumentNamePathExtension(document);
 	const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 	if (workspaceFolder) {
 		if (extension === ".c") {
 			await createFileIfNotExist(".h");
-			return await vscode.workspace.openTextDocument(`${path}${fileName}.h`);
+			return await vscode.workspace.openTextDocument(path.join(fileDir,`${fileName}.h`));
 		} else {
 			await createFileIfNotExist(".c");
-			return await vscode.workspace.openTextDocument(`${path}${fileName}.c`);
+			return await vscode.workspace.openTextDocument(path.join(fileDir,`${fileName}.c`));
 		}
 	}
 	return null;
 
 	async function createFileIfNotExist(extension: string) {
-		if ((await vscode.workspace.findFiles(`*/${fileName}${extension}`)).length < 1) {
+		if ((await vscode.workspace.findFiles(path.join('*', `${fileName}${extension}`))).length < 1) {
 			const workEdits = new vscode.WorkspaceEdit();
-			workEdits.createFile(vscode.Uri.file(`${path}${fileName}${extension}`));
+			workEdits.createFile(vscode.Uri.file(path.join(fileDir,`${fileName}${extension}`)));
 			await vscode.workspace.applyEdit(workEdits);
 		}
 	}
 };
 
-function getDocumentNamePathExtension(document: vscode.TextDocument): { fileName: string, path: string, extension: string } {
-	const lastSlashIndex = document.fileName.lastIndexOf('\\');
-	const extensionIndex = document.fileName.lastIndexOf(".");
-	const path = document.fileName.slice(0, lastSlashIndex + 1);
-	const fileName = document.fileName.slice(lastSlashIndex + 1, extensionIndex);
-	const extension = document.fileName.slice(extensionIndex, document.fileName.length + 1);
-	return { fileName, path, extension };
+function getDocumentNamePathExtension(document: vscode.TextDocument): { fileName: string, fileDir: string, extension: string } {
+	const fileDir = path.dirname(document.fileName) 
+	const fileName = path.basename(document.fileName, path.extname(document.fileName));
+	const extension = path.extname(document.fileName);
+	return { fileName, fileDir, extension };
 }
 
 async function editDocument(text: string, document: vscode.TextDocument, workEdits: vscode.WorkspaceEdit) {
